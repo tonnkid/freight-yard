@@ -76,10 +76,13 @@ export function createWorld(scene) {
   // 46 x 40 m of yard: long enough that a lane is a real sightline, narrow enough that a wall
   // never eats the player. Walls are 5.2 m so a raised platform still has a backdrop.
   solid(46.4, 0.4, 40.4, 0, -0.2, 0, 'canvas');
-  solid(0.6, 5.2, 40.4, -23, 2.6, 0, 'surface');
-  solid(0.6, 5.2, 40.4, 23, 2.6, 0, 'surface');
-  solid(46.4, 5.2, 0.6, 0, 2.6, -20, 'surface');
-  solid(46.4, 5.2, 0.6, 0, 2.6, 20, 'surface');
+  // Walls are 3.4 m: tall enough to be real cover, low enough that a level camera at eye height still
+  // catches the sky above them. At 5.2 m the perimeter filled the entire frustum and every capture
+  // measured near-black across the top third — the yard read as a sealed box, not an outdoor yard.
+  solid(0.6, 3.4, 40.4, -23, 1.7, 0, 'surface');
+  solid(0.6, 3.4, 40.4, 23, 1.7, 0, 'surface');
+  solid(46.4, 3.4, 0.6, 0, 1.7, -20, 'surface');
+  solid(46.4, 3.4, 0.6, 0, 1.7, 20, 'surface');
 
   // ---- left lane (A): the warehouse run -----------------------------------------------
   // A long warehouse wall makes the lane one-sided cover: the attacker pushes up against it, the
@@ -233,6 +236,106 @@ export function createWorld(scene) {
   sitePad.rotation.x = -Math.PI / 2;
   sitePad.position.set(siteCenter.x, 0.011, siteCenter.z);
   group.add(sitePad);
+
+  // ---- horizon ---------------------------------------------------------------------------
+  // Without this the upper half of every frame was a single flat colour: scene.background was one
+  // value and the fog faded to the same value, so the sky and the far end of the yard were literally
+  // the same pixel. Captures read as "half the screen is empty black". Three cheap layers fix it —
+  // a gradient dome for the sky, a dark silhouette band for the horizon line, and a warm glow where
+  // the sun sits — so distance reads as distance even at this poly budget.
+  // A gradient dome built from a canvas texture rather than a custom shader. The shader version
+  // rendered nothing measurable: the top third of every frame stayed at r=3 with no sky colour at all,
+  // which pointed at the fragment program rather than the geometry. A CanvasTexture on a plain
+  // MeshBasicMaterial has no shader to fail, and it is still one draw call.
+  // A CanvasTexture kept coming back as a flat pale blue-grey (#93AABB) that appeared nowhere in the
+  // gradient — the 2D canvas had not painted by the time the texture was uploaded, so the sampler got
+  // undefined bytes. A DataTexture written by hand has no paint step and cannot race: the bytes are
+  // final before the GPU ever sees them.
+  const SKY_STOPS = [
+    [0.000, [0x0d, 0x16, 0x22]],
+    [0.220, [0x1b, 0x2b, 0x3d]],
+    [0.400, [0x2f, 0x44, 0x59]],
+    [0.520, [0x4a, 0x5b, 0x6b]],
+    [0.600, [0x7d, 0x6a, 0x55]],
+    [0.660, [0xb0, 0x7a, 0x45]],
+    [0.700, [0xd4, 0x91, 0x4e]],
+    [0.745, [0x8a, 0x5f, 0x3a]],
+    [0.800, [0x3a, 0x2e, 0x24]],
+    [1.000, [0x12, 0x0f, 0x0d]],
+  ];
+  const SKY_H = 256;
+  const skyBytes = new Uint8Array(SKY_H * 4);
+  for (let i = 0; i < SKY_H; i += 1) {
+    // v runs 0 at the bottom of the texture to 1 at the top; SphereGeometry maps t=0 to the south
+    // pole, so flip here to put the zenith colour at the top of the dome.
+    const v = 1 - i / (SKY_H - 1);
+    let a = SKY_STOPS[0];
+    let b = SKY_STOPS[SKY_STOPS.length - 1];
+    for (let s = 0; s < SKY_STOPS.length - 1; s += 1) {
+      if (v >= SKY_STOPS[s][0] && v <= SKY_STOPS[s + 1][0]) {
+        a = SKY_STOPS[s];
+        b = SKY_STOPS[s + 1];
+        break;
+      }
+    }
+    const span = b[0] - a[0] || 1;
+    const f = Math.min(1, Math.max(0, (v - a[0]) / span));
+    for (let c = 0; c < 3; c += 1) {
+      skyBytes[i * 4 + c] = Math.round(a[1][c] + (b[1][c] - a[1][c]) * f);
+    }
+    skyBytes[i * 4 + 3] = 255;
+  }
+  const skyTex = new THREE.DataTexture(skyBytes, 1, SKY_H, THREE.RGBAFormat);
+  // Without this the bytes (13,22,34) are treated as LINEAR light. The renderer then runs them through
+  // ACES filmic tone mapping and an sRGB encode, which lifts the shadows hard and lands the zenith at
+  // roughly (141,165,183) on screen — a pale daytime blue instead of the dusk indigo that was written.
+  // Declaring the texture as sRGB makes the colour chain honour the values as authored.
+  skyTex.colorSpace = THREE.SRGBColorSpace;
+  skyTex.magFilter = THREE.LinearFilter;
+  skyTex.minFilter = THREE.LinearFilter;
+  skyTex.wrapS = THREE.ClampToEdgeWrapping;
+  skyTex.wrapT = THREE.ClampToEdgeWrapping;
+  skyTex.needsUpdate = true;
+  const skyGeo = new THREE.SphereGeometry(120, 32, 24);
+  const skyMat = new THREE.MeshBasicMaterial({
+    map: skyTex,
+    side: THREE.BackSide,
+    depthWrite: false,
+    fog: false,
+  });
+  const sky = new THREE.Mesh(skyGeo, skyMat);
+  sky.renderOrder = -100;
+  sky.frustumCulled = false;
+  group.add(sky);
+
+  // A ring of distant container silhouettes just outside the playable walls. They never collide and
+  // never cast, they exist only so the eye finds a horizon line instead of empty sky.
+  const farGeo = new THREE.BoxGeometry(1, 1, 1);
+  const farMat = new THREE.MeshBasicMaterial({ color: new THREE.Color('#0a0e14'), fog: false });
+  const farBoxes = new THREE.InstancedMesh(farGeo, farMat, 96);
+  const m4 = new THREE.Matrix4();
+  const q0 = new THREE.Quaternion();
+  let fi = 0;
+  for (let ring = 0; ring < 2; ring++) {
+    const radius = 46 + ring * 14;
+    const count = 48;
+    for (let i = 0; i < count && fi < 96; i++) {
+      const a = (i / count) * Math.PI * 2 + ring * 0.07;
+      const w = 7 + ((i * 37) % 11) * 1.4;
+      const h = 5 + ((i * 53) % 9) * 1.6 + ring * 3;
+      const d = 5;
+      m4.compose(
+        new THREE.Vector3(Math.cos(a) * radius, h / 2 - 0.6, Math.sin(a) * radius),
+        q0.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -a),
+        new THREE.Vector3(w, h, d),
+      );
+      farBoxes.setMatrixAt(fi++, m4);
+    }
+  }
+  farBoxes.instanceMatrix.needsUpdate = true;
+  farBoxes.frustumCulled = false;
+  farBoxes.renderOrder = -50;
+  group.add(farBoxes);
 
   // Bounds the bots stay inside, so a stray waypoint never pushes one through a wall.
   const bounds = { minX: -21.6, maxX: 21.6, minZ: -18.6, maxZ: 18.6 };

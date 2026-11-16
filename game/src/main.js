@@ -53,8 +53,11 @@ renderer.toneMappingExposure = 1.38;
 document.getElementById('game').appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
+// The sky is now a shader dome built in world.js, so the background colour only shows through if the
+// dome is somehow culled. Fog still has to exist, but it fades toward the horizon band rather than the
+// old flat canvas value, so distant geometry melts into the skyline instead of into a black wall.
 scene.background = new THREE.Color(PALETTE.canvas);
-scene.fog = new THREE.Fog(new THREE.Color(PALETTE.canvas), 26, 62);
+scene.fog = new THREE.Fog(new THREE.Color(PALETTE.surface), 34, 78);
 const camera = new THREE.PerspectiveCamera(76, window.innerWidth / window.innerHeight, 0.045, 160);
 camera.rotation.order = 'YXZ';
 scene.add(camera);
@@ -725,9 +728,13 @@ function runShot(name) {
     state.round = 2;
     state.scoreDef = 1;
     state.scoreAtk = 0;
+    // The yard is a closed box: 5.2 m perimeter walls, camera eye at 1.62 m, 76-degree FOV. Facing
+    // level, the walls fill the frame edge to edge and the sky dome never enters the frustum — which
+    // is why the top of every capture measured as near-black (r=3) rather than the sky colour. Lift
+    // the eye and tilt the aim up so the skydome clears the wall line and the yard reads as outdoors.
     body.state.position.set(-1.0, 0, 12.4);
     body.state.yaw = 0.02;
-    body.state.pitch = -0.015;
+    body.state.pitch = 0.085;
     arsenal.give('rifle');
     arsenal.state.primary = 'rifle';
     arsenal.equip('rifle');

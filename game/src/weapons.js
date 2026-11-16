@@ -158,30 +158,30 @@ export function buildViewModel(kind) {
     add(new THREE.BoxGeometry(0.05, 0.075, 0.26), body, 0, 0, 0);
     add(new THREE.BoxGeometry(0.042, 0.11, 0.06), grip, 0, -0.075, 0.07);
     add(new THREE.BoxGeometry(0.02, 0.014, 0.05), trim, 0, 0.048, -0.05);
-    group.position.set(0.2, -0.17, -0.3);
+    group.position.set(0.26, -0.19, -0.52);
   } else if (kind === 'smg') {
     add(new THREE.BoxGeometry(0.075, 0.09, 0.36), body, 0, 0, 0);
     add(new THREE.BoxGeometry(0.03, 0.03, 0.22), grip, 0, 0.012, -0.27);
     add(new THREE.BoxGeometry(0.05, 0.17, 0.055), grip, 0, -0.12, 0.04);
     add(new THREE.BoxGeometry(0.045, 0.06, 0.14), trim, 0, -0.02, 0.22);
-    group.position.set(0.21, -0.19, -0.36);
+    group.position.set(0.27, -0.21, -0.58);
   } else if (kind === 'rifle') {
     add(new THREE.BoxGeometry(0.085, 0.1, 0.44), body, 0, 0, 0);
     add(new THREE.BoxGeometry(0.032, 0.032, 0.34), grip, 0, 0.014, -0.36);
     add(new THREE.BoxGeometry(0.055, 0.19, 0.06), grip, 0, -0.14, 0.02);
     add(new THREE.BoxGeometry(0.075, 0.075, 0.2), grip, 0, -0.02, 0.3);
     add(new THREE.BoxGeometry(0.03, 0.05, 0.1), trim, 0, 0.075, 0.02);
-    group.position.set(0.22, -0.2, -0.42);
+    group.position.set(0.28, -0.22, -0.62);
   } else if (kind === 'shotgun') {
     add(new THREE.BoxGeometry(0.09, 0.1, 0.42), grip, 0, 0, 0);
     add(new THREE.BoxGeometry(0.05, 0.05, 0.44), body, 0, 0.03, -0.4);
     add(new THREE.BoxGeometry(0.06, 0.055, 0.2), body, 0, -0.02, -0.3);
     add(new THREE.BoxGeometry(0.07, 0.15, 0.09), grip, 0, -0.1, 0.26);
-    group.position.set(0.22, -0.21, -0.4);
+    group.position.set(0.28, -0.23, -0.60);
   } else if (kind === 'grenade') {
     add(new THREE.SphereGeometry(0.055, 12, 10), grip, 0, 0, 0);
     add(new THREE.BoxGeometry(0.03, 0.03, 0.03), trim, 0, 0.062, 0);
-    group.position.set(0.24, -0.24, -0.34);
+    group.position.set(0.30, -0.26, -0.54);
   }
 
   group.traverse((mesh) => {

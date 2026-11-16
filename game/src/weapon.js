@@ -32,6 +32,13 @@ export function createArsenal(camera) {
   // Two slots on the camera: the current view model and the muzzle that belongs to it. Models are
   // built once per weapon type and cloned, so switching guns costs a graph swap, not a rebuild.
   const modelHolder = new THREE.Group();
+  // Push the view model out and down. At 0.30 units from the eye with a 76-degree FOV the visible
+  // width is only about 0.47 units, so a 0.26-long pistol covered most of the centre of the screen and
+  // every capture read as "a brown block blocking the view". Pulling it to 0.52 and further into the
+  // lower-right corner shrinks it to a conventional view model that frames the scene instead of hiding
+  // it. Scaled down as well so the silhouette stays out of the crosshair.
+  modelHolder.position.set(0.10, -0.045, 0);
+  modelHolder.scale.setScalar(0.86);
   camera.add(modelHolder);
   const { flash, light } = buildMuzzle();
   camera.add(flash, light);
